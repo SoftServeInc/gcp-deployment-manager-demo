@@ -1,0 +1,36 @@
+info:
+  title: Kubernetes Manifests
+  author: pklos@softserveinc.com
+  description: |
+    Creates and deploy Kubernetes Manifests for StatefulSet
+  version: 0.1
+
+properties:
+  namespace:
+    type: string
+    default: default
+  replicas:
+    type: integer
+    default: 1
+  servicePort:
+    type: integer
+  serviceType:
+    type: string
+  targetPort:
+    type: integer
+    default: 80
+  image:
+    type: string
+    default: nginx
+  sqlRegion:
+    type: string
+  sqlName:
+    type: string
+  serviceAccountFileName:
+    type: string
+  volumeClaimTemplates:
+    type: boolean
+  env:
+    type: array
+  initContainerName:
+    type: string

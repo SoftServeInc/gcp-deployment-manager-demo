@@ -1,0 +1,155 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+
+{% set SERVICE_COLLECTION_PREFIX = '/api/v1/namespaces/{namespace}/' %}
+{% set SERVICE_COLLECTION = SERVICE_COLLECTION_PREFIX + 'services' %}
+{% set DEPLOYMENT_COLLECTION_PREFIX = '/apis/apps/v1beta1/namespaces/{namespace}/' %}
+{% set DEPLOYMENT_COLLECTION = DEPLOYMENT_COLLECTION_PREFIX + 'deployments' %}
+{% set NAME_PREFIX = env['deployment'] %}
+{% set NAME = env['name'] %}
+
+{% set NAMESPACE = properties['namespace'] %}
+{% set REPLICAS = properties['replicas'] %}
+{% set SQL_PROJECT_ID = env['project'] %}
+{% set SQL_REGION = properties['sqlRegion'] %}
+{% set SQL_NAME = properties['sqlName'] %}
+{% set SERVICE_ACCOUNT_FILE_NAME = properties['serviceAccountFileName'] %}
+{% set IMAGE = properties['image'] %}
+
+
+{% if properties['servicePort'] is defined %}
+{% set SERVICE_PORT = properties['servicePort'] %}
+{% set SERVICE_TYPE = properties['serviceType'] %}
+{% endif %}
+
+{% if properties['targetPort'] is defined %}
+{% set TARGET_PORT = properties['targetPort'] %}
+{% endif %}
+
+{% if properties['env'] is defined %}
+{% set ENV_VARIABLES = properties['env'] %}
+{% endif %}
+
+{% if properties['persistentVolume'] is defined %}
+{% set PERSISTENT_VOLUME = properties['persistentVolume'] %}
+{% endif %}
+
+{% if properties['args'] is defined %}
+{% set ARGS = '"' + properties['args'] + '"' %}
+{% endif %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+{% if SERVICE_PORT is defined %}
+- name: {{ NAME_PREFIX }}-{{ NAME }}-svc
+  type: {{ CLUSTER_TYPE }}-type:{{ SERVICE_COLLECTION }}
+  properties:
+    apiVersion: v1
+    kind: Service
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME }}-svc
+      labels:
+        id: {{ NAME_PREFIX }}-{{ NAME }}-svc
+    spec:
+      type: {{ SERVICE_TYPE }}
+      ports:
+      - port: {{ SERVICE_PORT }}
+        targetPort: {{ TARGET_PORT }}
+        protocol: TCP
+      selector:
+        app: {{ NAME_PREFIX }}-{{ NAME }}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}
+{% endif %}
+
+
+- name: {{ NAME_PREFIX }}-{{ NAME }}
+  type: {{ CLUSTER_TYPE }}-type-apps:{{ DEPLOYMENT_COLLECTION }}
+  properties:
+    apiVersion: apps/v1beta1
+    kind: Deployment
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME_PREFIX }}-{{ NAME }}
+    spec:
+      replicas: {{ REPLICAS }}
+      template:
+        metadata:
+          labels:
+            name: {{ NAME_PREFIX }}-{{ NAME }}
+            app: {{ NAME_PREFIX }}-{{ NAME }}
+        spec:
+          containers:
+          - name: {{ name }}
+            image: {{ IMAGE }}
+{% if ARGS is defined %}
+            args: [{{ ARGS }}]
+{% endif %}
+{% if TARGET_PORT is defined %}
+            ports:
+            - containerPort: {{ TARGET_PORT }}
+{% endif %}
+{% if ENV_VARIABLES is defined %}
+            env:
+{% for var1, var2 in ENV_VARIABLES.iteritems() %}
+              - name: {{ var1 }}
+                value: "{{ var2 }}"
+{% endfor %}
+{% endif %}
+{% if PERSISTENT_VOLUME is defined %}
+            volumeMounts:
+              - name: my-volume
+                mountPath: /var/www/html
+{% endif %}
+{% if SQL_REGION is defined %}
+          - name: cloudsql-proxy
+            image: gcr.io/cloudsql-docker/gce-proxy:1.11
+            command: ["/cloud_sql_proxy",
+                "-instances={{ SQL_PROJECT_ID }}:{{ SQL_REGION }}:{{ NAME_PREFIX }}{{ SQL_NAME }}-master=tcp:3306",
+                "-credential_file=/secrets/cloudsql/{{ SERVICE_ACCOUNT_FILE_NAME }}"]
+            securityContext:
+              runAsUser: 2  # non-root user
+              allowPrivilegeEscalation: false
+            volumeMounts:
+            - name: cloudsql-instance-credentials
+              mountPath: /secrets/cloudsql
+              readOnly: true
+{% endif %}
+{% if PERSISTENT_VOLUME is defined or SQL_REGION is defined %}
+          volumes:
+{% endif %}
+{% if PERSISTENT_VOLUME is defined %}
+            - name: my-volume
+              persistentVolumeClaim:
+                claimName: {{ NAME_PREFIX }}-pvc
+                readOnly: true
+{% endif %}
+{% if SQL_REGION is defined %}
+            - name: cloudsql-instance-credentials
+              secret:
+                secretName: {{ NAME_PREFIX }}-secret
+{% endif %}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type-apps
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}
+{% if PERSISTENT_VOLUME is defined %}
+      - {{ NAME_PREFIX }}-pvc
+{% endif %}
+{% if SQL_REGION is defined %}
+      - {{ NAME_PREFIX }}{{ SQL_NAME }}-master
+      - {{ NAME_PREFIX }}{{ SQL_NAME }}-db-{{ NAME }}db
+      - {{ NAME_PREFIX }}{{ SQL_NAME }}-db-root
+{% endif %}

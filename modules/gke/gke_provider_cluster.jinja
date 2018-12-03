@@ -1,0 +1,199 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set NAME_PREFIX = env['deployment'] %}
+{% set CLUSTER_NAME = NAME_PREFIX %}
+{% set TYPE_NAME = NAME_PREFIX + '-type' %}
+{% set K8S_ENDPOINTS = {'': 'api/v1', '-apps': 'apis/apps/v1beta1', '-v1beta1-extensions': 'apis/extensions/v1beta1'} %}
+
+{% if properties["network"] is defined %}
+{% set NETWORK = properties['network'] %}
+{% endif %}
+
+{% set API_VERSION = properties['apiVersion'] %}
+{% set PROJECT = env["project"] %}
+{% set LOCATION = properties["location"] %}
+{% set ZONE = properties["zone"] %}
+{% set LEGACY_ABAC = properties["legacyAbac"] %}
+{% set MONITORING = properties["monitoringService"] %}
+{% set HTTP_LB = properties["httpLoadBalancing"] %}
+{% set NODE_LOCATIONS = properties["locations"] %}
+{% set INITIAL_CLUSTER_VER = properties["initialClusterVersion"] %}
+{% set NODE_VER = properties["nodeVersion"] %}
+{% set AUTO_UPGRADE = properties["autoUpgrade"] %}
+{% set AUTO_REPAIR = properties["autoRepair"] %}
+{% set IMAGE_TYPE = properties["imageType"] %}
+{% set NODE_MACHINE_TYPE = properties["nodeMachineType"] %}
+{% set NODE_INITIAL_COUNT = properties["nodeInitialCount"] %}
+{% set NODE_MIN_COUNT = properties["nodeMinCount"] %}
+{% set NODE_MAX_COUNT = properties["nodeMaxCount"] %}
+{% set AUTOSCALING = properties["autoscaling"] %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ NAME_PREFIX }}
+{% if API_VERSION == "v1beta1" %}
+  type: gcp-types/container-v1beta1:projects.locations.clusters
+{% else %}
+  type: gcp-types/container-v1:projects.zones.clusters
+{% endif %}
+  properties:
+{% if API_VERSION == "v1beta1" %}
+    parent: projects/{{ PROJECT }}/locations/{{ LOCATION }}
+{% else %}
+    zone: {{ ZONE }}
+{% endif %}
+    cluster:
+{% if LEGACY_ABAC %}
+      legacyAbac:
+        enabled: True
+{% endif %}
+{% if NETWORK_POLICY %}
+      networkPolicy:
+        enabled: true
+        provider: CALICO
+{% endif %}
+{% if MONITORING %}
+      monitoringService: {{ MONITORING }}
+{% endif %}
+{% if HTTP_LB is defined %}
+      addonsConfig:
+        httpLoadBalancing:
+          disabled: {{ not HTTP_LB }}
+{% endif %}
+{% if NODE_LOCATIONS %}
+      locations: {{ NODE_LOCATIONS.split(",") }}
+{% endif %}
+{% if INITIAL_CLUSTER_VER %}
+      initialClusterVersion: {{ INITIAL_CLUSTER_VER }}
+{% endif %}
+      nodePools:
+      - name: {{ NAME_PREFIX }}np
+        config:
+          machineType: {{ NODE_MACHINE_TYPE }}
+          diskSizeGb: 10
+          oauthScopes:
+          - https://www.googleapis.com/auth/devstorage.read_only
+          imageType: {{ IMAGE_TYPE }}
+{% if NODE_VER %}
+        version: {{ NODE_VER }}
+{% endif %}
+        initialNodeCount: {{ NODE_INITIAL_COUNT }}
+        autoscaling:
+          enabled: {{ AUTOSCALING }}
+{% if AUTOSCALING %}
+          minNodeCount: {{ NODE_MIN_COUNT }}
+          maxNodeCount: {{ NODE_MAX_COUNT }}
+{% endif %}
+        management:
+          autoUpgrade: {{ AUTO_UPGRADE }}
+          autoRepair: {{ AUTO_REPAIR }}
+{% for typeSuffix, endpoint in K8S_ENDPOINTS.iteritems() %}
+- name: {{ TYPE_NAME }}{{ typeSuffix }}
+  type: deploymentmanager.v2beta.typeProvider
+  properties:
+    options:
+      validationOptions:
+        schemaValidation: IGNORE_WITH_WARNINGS
+      inputMappings:
+      - fieldName: name
+        location: PATH
+        methodMatch: ^(GET|DELETE|PUT)$
+        value: /api/test
+      - fieldName: metadata.name
+        location: BODY
+        methodMatch: ^(PUT|POST)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: Authorization
+        location: HEADER
+        value: >
+          $.concat("Bearer ", $.googleOauth2AccessToken())
+    descriptorUrl: https://$(ref.{{ CLUSTER_NAME }}.endpoint)/swaggerapi/{{ endpoint }}
+{% endfor %}
+- name: {{ TYPE_NAME }}-network-policy
+  type: deploymentmanager.v2beta.typeProvider
+  properties:
+    options:
+      validationOptions:
+        schemaValidation: IGNORE_WITH_WARNINGS
+      inputMappings:
+      - fieldName: name
+        location: PATH
+        methodMatch: ^(GET|DELETE|PUT)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: metadata.name
+        location: BODY
+        methodMatch: ^(PUT|POST)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: Authorization
+        location: HEADER
+        value: >
+          $.concat("Bearer ", $.googleOauth2AccessToken())
+    descriptorUrl: https://$(ref.{{ CLUSTER_NAME }}.endpoint)/swaggerapi/apis/networking.k8s.io/v1
+- name: {{ TYPE_NAME }}-storage
+  type: deploymentmanager.v2beta.typeProvider
+  properties:
+    options:
+      validationOptions:
+        schemaValidation: IGNORE_WITH_WARNINGS
+      inputMappings:
+      - fieldName: name
+        location: PATH
+        methodMatch: ^(GET|DELETE|PUT)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: metadata.name
+        location: BODY
+        methodMatch: ^(PUT|POST)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: Authorization
+        location: HEADER
+        value: >
+          $.concat("Bearer ", $.googleOauth2AccessToken())
+    descriptorUrl: https://$(ref.{{ CLUSTER_NAME }}.endpoint)/swaggerapi/apis/storage.k8s.io/v1
+- name: {{ TYPE_NAME }}-appsv1
+  type: deploymentmanager.v2beta.typeProvider
+  properties:
+    options:
+      validationOptions:
+        schemaValidation: IGNORE_WITH_WARNINGS
+      inputMappings:
+      - fieldName: name
+        location: PATH
+        methodMatch: ^(GET|DELETE|PUT)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: metadata.name
+        location: BODY
+        methodMatch: ^(PUT|POST)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: Authorization
+        location: HEADER
+        value: >
+          $.concat("Bearer ", $.googleOauth2AccessToken())
+    descriptorUrl: https://$(ref.{{ CLUSTER_NAME }}.endpoint)/swaggerapi/apis/apps/v1
+- name: {{ TYPE_NAME }}-auto
+  type: deploymentmanager.v2beta.typeProvider
+  properties:
+    options:
+      validationOptions:
+        schemaValidation: IGNORE_WITH_WARNINGS
+      inputMappings:
+      - fieldName: name
+        location: PATH
+        methodMatch: ^(GET|DELETE|PUT)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: metadata.name
+        location: BODY
+        methodMatch: ^(PUT|POST)$
+        value: $.ifNull($.resource.properties.metadata.name, $.resource.name)
+      - fieldName: Authorization
+        location: HEADER
+        value: >
+          $.concat("Bearer ", $.googleOauth2AccessToken())
+    descriptorUrl: https://$(ref.{{ CLUSTER_NAME }}.endpoint)/swaggerapi/apis/autoscaling/v2beta1

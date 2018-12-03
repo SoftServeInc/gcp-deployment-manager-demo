@@ -1,0 +1,25 @@
+info:
+  title: Kubernetes Manifests
+  author: pklos@softserveinc.com
+  description: |
+    Creates and deploy Kubernetes Manifests for Horizontal Pod Autoscaler
+  version: 0.1
+
+properties:
+  namespace:
+    type: string
+    default: default
+  autoscalingDeploymentName:
+    type: string
+  hpaMinReplicas:
+    type: integer
+    default: 1
+  hpaMaxReplicas:
+    type: integer
+    default: 25
+  targetCpuUtilization:
+    type: integer
+    default: 50
+  targetAverageMemory:
+    type: string
+    default: 1000Mi

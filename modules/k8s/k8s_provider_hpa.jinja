@@ -1,0 +1,56 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+
+{% set HPA_COLLECTION_PREFIX = '/apis/autoscaling/v2beta1/' %}
+{% set HPA_COLLECTION = HPA_COLLECTION_PREFIX + 'namespaces/{namespace}/horizontalpodautoscalers' %}
+{% set NAME = env['name'] %}
+{% set NAME_PREFIX = env['deployment'] %}
+
+{% set AUTOSCALING_DEPLOYMENT_NAME = properties['autoscalingDeploymentName'] %}
+{% set NAMESPACE = properties['namespace'] %}
+{% set HPA_MIN_REPLICAS = properties['hpaMinReplicas'] %}
+{% set HPA_MAX_REPLICAS = properties['hpaMaxReplicas'] %}
+{% set TARGET_CPU_UTILIZATION = properties['targetCpuUtilization'] %}
+{% set TARGET_AVERAGE_MEMORY = properties['targetAverageMemory'] %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ NAME_PREFIX }}-{{ NAME }}
+  type: {{ CLUSTER_TYPE }}-type-auto:{{ HPA_COLLECTION }}
+  properties:
+    apiVersion: autoscaling/v2beta1
+    kind: HorizontalPodAutoscaler
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME_PREFIX }}-{{ NAME }}
+    spec:
+      scaleTargetRef:
+        apiVersion: extensions/v1beta1
+        kind: Deployment
+        namespace: {{ NAMESPACE }}
+        name: {{ NAME_PREFIX }}-{{ AUTOSCALING_DEPLOYMENT_NAME }}
+      minReplicas: {{ HPA_MIN_REPLICAS }}
+      maxReplicas: {{ HPA_MAX_REPLICAS }}
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          targetAverageUtilization: {{ TARGET_CPU_UTILIZATION }}
+      - type: Resource
+        resource:
+          name: memory
+          targetAverageValue: {{ TARGET_AVERAGE_MEMORY }}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type-auto
+      - {{ NAME_PREFIX }}-{{ AUTOSCALING_DEPLOYMENT_NAME }}
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}

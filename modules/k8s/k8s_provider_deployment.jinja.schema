@@ -1,0 +1,33 @@
+info:
+  title: Kubernetes Manifests
+  author: pklos@softserveinc.com
+  description: |
+    Creates and deploy Kubernetes Manifests for Deployment
+  version: 0.1
+
+properties:
+  namespace:
+    type: string
+    default: default
+  replicas:
+    type: integer
+    default: 1
+  sqlRegion:
+    type: string
+  sqlName:
+    type: string
+  serviceAccountFileName:
+    type: string
+  image:
+    type: string
+    default: nginx
+  servicePort:
+    type: integer
+  targetPort:
+    type: integer
+  env:
+    type: object
+  persistentVolume:
+    type: boolean
+  args:
+    type: string

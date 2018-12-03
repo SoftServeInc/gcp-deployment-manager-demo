@@ -1,0 +1,92 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+
+{% set NETWORK_POLICY_COLLECTION_PREFIX = '/apis/networking.k8s.io/v1/namespaces/{namespace}/' %}
+{% set NETWORK_POLICY_COLLECTION = NETWORK_POLICY_COLLECTION_PREFIX + 'networkpolicies' %}
+{% set NAME_PREFIX = env['deployment'] %}
+{% set NAME = env['name'] %}
+
+{% set NAMESPACE = properties['namespace'] %}
+{% set POLICY_TYPE = properties['policyType'] %}
+
+{% if properties['podSelectorLabels'] is defined %}
+{% set LABELS = properties['podSelectorLabels'] %}
+{% endif %}
+{% if properties['allowPorts'] is defined %}
+{% set PORTS = properties['allowPorts'] %}
+{% endif %}
+{% if properties['ingressAllowFromLabels'] is defined %}
+{% set INGRESS_ALLOW_FROM_LABELS = properties['ingressAllowFromLabels'] %}
+{% endif %}
+{% if properties['ingressAllowFromAll'] is defined %}
+{% set INGRESS_ALLOW_FROM_ALL = properties['ingressAllowFromAll'] %}
+{% endif %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ NAME_PREFIX }}-{{ NAME }}
+  type: {{ CLUSTER_TYPE }}-type-network-policy:{{ NETWORK_POLICY_COLLECTION }}
+  properties:
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME_PREFIX }}-{{ NAME }}
+    spec:
+{% if LABELS is defined %}
+      podSelector:
+        matchLabels:
+{% for var1, var2 in LABELS.iteritems() %}
+          {{ var1 }}: {{ NAME_PREFIX }}-{{ var2 }}
+{% endfor %}
+{% else %}
+      podSelector: {}
+{% endif %}
+{% if POLICY_TYPE == 'Egress' %}
+      policyTypes:
+      - Egress
+{% if PORTS is defined %}
+      egress:
+      - ports:
+{% for var1 in PORTS %}
+        - port: {{ var1.port }}
+          protocol: {{ var1.protocol }}
+{% endfor %}
+      - to:
+        - namespaceSelector: {}
+{% endif %}
+{% else %}
+      egress: []
+{% endif %}
+{% if POLICY_TYPE == 'Ingress' %}
+      policyTypes:
+      - Ingress
+{% if INGRESS_ALLOW_FROM_LABELS is defined %}
+      ingress:
+      - from:
+        - podSelector:
+            matchLabels:
+{% for var1, var2 in INGRESS_ALLOW_FROM_LABELS.iteritems() %}
+              {{ var1 }}: {{ NAME_PREFIX }}-{{ var2 }}
+{% endfor %}
+{% endif %}
+{% if INGRESS_ALLOW_FROM_ALL %}
+      ingress:
+      - from: []
+{% endif %}
+{% else %}
+      ingress: []
+{% endif %}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type-network-policy
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}

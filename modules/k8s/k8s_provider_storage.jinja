@@ -1,0 +1,41 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+
+{% set STORAGE_COLLECTION_PREFIX = '/apis/storage.k8s.io/v1/' %}
+{% set STORAGE_COLLECTION = STORAGE_COLLECTION_PREFIX + 'storageclasses' %}
+
+{% set NAME_PREFIX = env['deployment'] %}
+
+{% set REPLICATION_TYPE = properties['replicationType'] %}
+{% if REPLICATION_TYPE == "regional-pd" %}
+{% set ZONES = properties['zones'] %}
+{% endif %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ NAME_PREFIX }}-storage
+  type: {{ CLUSTER_TYPE }}-type-storage:{{ STORAGE_COLLECTION }}
+  properties:
+      kind: StorageClass
+      apiVersion: storage.k8s.io/v1
+      metadata:
+        name: {{ NAME_PREFIX }}-storage
+      provisioner: kubernetes.io/gce-pd
+      parameters:
+        type: pd-standard
+        replication-type: {{ REPLICATION_TYPE }}
+{% if REPLICATION_TYPE == "regional-pd" %}
+        zones: {{ ZONES }}
+{% endif %}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type-storage

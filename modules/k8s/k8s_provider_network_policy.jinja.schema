@@ -1,0 +1,22 @@
+info:
+  title: Kubernetes Manifests
+  author: pklos@softserveinc.com
+  description: |
+    Creates and deploy Kubernetes Manifests for Network Policy
+  version: 0.1
+
+properties:
+  namespace:
+    type: string
+    default: default
+  policyType:
+    type: string
+    default: Ingress
+  podSelectorLabels:
+    type: object
+  allowPorts:
+    type: array
+  ingressAllowFromLabels:
+    type: object
+  ingressAllowFromAll:
+    type: boolean

@@ -1,0 +1,58 @@
+info:
+  title: GKE
+  author: pklos@softserveinc.com
+  description: |
+    Creates a GKE deployment
+  version: 0.1
+
+properties:
+  zone:
+    type: string
+  location:
+    type: string
+  apiVersion:
+    type: string
+    default: v1beta1
+    enum:
+    - v1
+    - v1beta1
+  imageType:
+    type: string
+    default: cos
+  legacyAbac:
+    type: boolean
+    default: false
+  networkPolicy:
+    type: boolean
+    default: true
+  autoscaling:
+    type: boolean
+    default: false
+  autoUpgrade:
+    type: boolean
+    default: false
+  autoRepair:
+    type: boolean
+    default: false
+  monitoringService:
+    type: string
+  httpLoadBalancing:
+    type: boolean
+  locations:
+    type: string
+  initialClusterVersion:
+    type: string
+  nodeVersion:
+    type: string
+  nodeMachineType:
+    type: string
+    default: n1-standard-1
+  nodeInitialCount:
+    type: integer
+    default: 1
+  nodeMinCount:
+    type: integer
+    default: 1
+  nodeMaxCount:
+    type: integer
+    default: 10

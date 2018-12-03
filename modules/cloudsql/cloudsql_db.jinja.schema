@@ -1,0 +1,16 @@
+info:
+  title: CloudSQL DB
+  author: pklos@softserveinc.com
+  description: |
+    Creates a DB on CloudSQL Instance
+  version: 0.1
+
+properties:
+  sqlName:
+    type: string
+  sqlRegion:
+    type: string
+  databaseName:
+    type: string
+  dependsOnDbName:
+    type: string

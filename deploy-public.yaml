@@ -1,0 +1,334 @@
+imports:
+- path: modules/gke/gke_provider_cluster.jinja
+- path: modules/cloudsql/cloudsql.jinja
+- path: modules/cloudsql/cloudsql_db.jinja
+- path: modules/network/network_provider.jinja
+- path: modules/k8s/k8s_provider_storage.jinja
+- path: modules/k8s/k8s_provider_deployment.jinja
+- path: modules/k8s/k8s_provider_secret.jinja
+- path: modules/k8s/k8s_provider_statefulset.jinja
+- path: modules/k8s/k8s_provider_hpa.jinja
+- path: modules/k8s/k8s_provider_pv.jinja
+- path: modules/k8s/k8s_provider_namespace.jinja
+- path: modules/k8s/k8s_provider_network_policy.jinja
+
+resources:
+
+## GKE cluster deployment
+
+- name: gke-cluster
+  type: modules/gke/gke_provider_cluster.jinja
+  properties:
+    location: europe-west3
+    initialClusterVersion: 1.10.6-gke.11
+    nodeVersion: 1.10.6-gke.11
+    nodeMachineType: n1-standard-2
+    autoscaling: True
+
+## CloudSQL instance with failover deployment
+
+- name: sql
+  type: modules/cloudsql/cloudsql.jinja
+  properties:
+    dbUser:
+      password: <MySQL_Password>
+    failover: true
+    cloudsql:
+      region: europe-west3
+      zone: europe-west3-b
+      serviceAccountEmailAddress: "<Service_Account_Email_Address>"
+
+## Regional Storage - k8s manifest apply
+
+- name: storage-regional-gke
+  type: modules/k8s/k8s_provider_storage.jinja
+  properties:
+    replicationType: regional-pd
+    zones: europe-west3-b, europe-west3-c
+
+################################################
+## Drupal App Deployment - k8s manifests apply #
+################################################
+
+- name: ns-drupal
+  type: modules/k8s/k8s_provider_namespace.jinja
+
+- name: secret-service-account-drupal
+  type: modules/k8s/k8s_provider_secret.jinja
+  properties:
+    namespace: ns-drupal
+    dataFileName: service-account-creds.json
+    data: |
+      <Service Account JSON Credentials (base64)>
+
+- name: pv-nginx
+  type: modules/k8s/k8s_provider_pv.jinja
+  properties:
+    namespace: ns-drupal
+    pdName: gke-test14-27505657-dy-pvc-cde4435c-f232-11e8-8435-42010a9c0038
+
+- name: autoscaling-nginx
+  type: modules/k8s/k8s_provider_hpa.jinja
+  properties:
+    autoscalingDeploymentName: nginx
+    namespace: ns-drupal
+
+- name: nginx
+  type: modules/k8s/k8s_provider_deployment.jinja
+  properties:
+    image: wodby/nginx:1.15-5.0.16
+    port: 80
+    namespace: ns-drupal
+    serviceType: LoadBalancer
+    servicePort: 80
+    targetPort: 80
+    replicas: 1
+    persistentVolume: True
+    env:
+      NGINX_ERROR_LOG_LEVEL: debug
+      NGINX_BACKEND_HOST: drupal-svc
+      NGINX_SERVER_ROOT: "/var/www/html/web"
+      NGINX_VHOST_PRESET: drupal8
+
+- name: drupaldb
+  type: modules/cloudsql/cloudsql_db.jinja
+  properties:
+    databaseName: drupal
+    dependsOnDbName: wpdb
+    sqlName: sql
+
+- name: autoscaling-drupal
+  type: modules/k8s/k8s_provider_hpa.jinja
+  properties:
+    autoscalingDeploymentName: drupal
+    namespace: ns-drupal
+
+- name: drupal
+  type: modules/k8s/k8s_provider_deployment.jinja
+  properties:
+    namespace: ns-drupal
+    serviceType: ClusterIP
+    servicePort: 9000
+    targetPort: 9000
+    replicas: 1
+    sqlRegion: europe-west3
+    sqlName: sql
+    serviceAccountFileName: service-account-creds.json
+    image: "wodby/drupal:8-4.9.3"
+    env:
+      DB_HOST: "127.0.0.1:3306"
+      DB_PASSWORD: <MySQL_Password>
+      DB_USER: root
+      DB_NAME: drupaldb
+      DB_DRIVER: mysql
+      DRUPAL_TRUSTED_HOST_PATTERNS: "'.*'"
+
+###################################################
+## Wordpress App Deployment - k8s manifests apply #
+###################################################
+
+- name: ns-wp
+  type: modules/k8s/k8s_provider_namespace.jinja
+
+- name: secret-service-account-wp
+  type: modules/k8s/k8s_provider_secret.jinja
+  properties:
+    namespace: ns-wp
+    dataFileName: service-account-creds.json
+    data: |
+      <Service Account JSON Credentials (base64)>
+
+- name: wpdb
+  type: modules/cloudsql/cloudsql_db.jinja
+  properties:
+    databaseName: wpdb
+    sqlName: sql
+
+- name: wp
+  type: modules/k8s/k8s_provider_statefulset.jinja
+  properties:
+    sqlRegion: europe-west3
+    sqlName: sql
+    serviceAccountFileName: service-account-creds.json
+    replicas: 1
+    namespace: ns-wp
+    serviceType: LoadBalancer
+    servicePort: 80
+    targetPort: 80
+    autoscalerMinReplicas: 1
+    autoscalerMaxReplicas: 30
+    image: "wordpress"
+    initContainerName: busybox
+    volumeClaimTemplates: True
+
+#########################################################################
+## Network Security - k8s manifests apply (Network Policy Testing Pods) #
+#########################################################################
+
+- name: wp-ns-netpol-google-test
+  type: modules/k8s/k8s_provider_deployment.jinja
+  properties:
+    namespace: ns-wp
+    replicas: 1
+    image: "plavignotte/continuous-curl"
+    args: google.com
+    env:
+      DEBUG: "1"
+      LOOP: "3"
+      OPTIONS: "-s -I -vvv"
+
+- name: wp-ns-netpol-drupal-test
+  type: modules/k8s/k8s_provider_deployment.jinja
+  properties:
+    namespace: ns-wp
+    replicas: 1
+    image: "plavignotte/continuous-curl"
+    args: "drupal-svc.ns-drupal.svc.cluster.local:9000"
+    env:
+      DEBUG: "1"
+      LOOP: "3"
+      OPTIONS: "-s -I -vvv"
+
+- name: drupal-ns-netpol-drupal-test
+  type: modules/k8s/k8s_provider_deployment.jinja
+  properties:
+    namespace: ns-drupal
+    replicas: 1
+    image: "plavignotte/continuous-curl"
+    args: "drupal-svc.ns-drupal.svc.cluster.local:9000"
+    env:
+      DEBUG: "1"
+      LOOP: "3"
+      OPTIONS: "-s -I -vvv"
+
+###########################################
+## Network Security - k8s manifests apply #
+###########################################
+
+- name: np-default-deny-all-egress-ns-wp
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-wp
+    policyType: Egress
+
+- name: np-default-deny-all-egress-ns-drupal
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    policyType: Egress
+
+- name: np-default-deny-all-ingress-ns-wp
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-wp
+    policyType: Ingress
+
+- name: np-default-deny-all-ingress-ns-drupal
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    policyType: Ingress
+
+- name: np-drupal-allow-egress
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    podSelectorLabels:
+      app: drupal
+    policyType: Egress
+    allowPorts:
+      - port: 53
+        protocol: UDP
+      - port: 3307
+        protocol: TCP
+      - port: 443
+        protocol: TCP
+
+- name: np-wp-allow-egress
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-wp
+    podSelectorLabels:
+      app: wp
+    policyType: Egress
+    allowPorts:
+      - port: 53
+        protocol: UDP
+      - port: 3307
+        protocol: TCP
+      - port: 443
+        protocol: TCP
+
+- name: np-nginx-allow-egress
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    podSelectorLabels:
+      app: nginx
+    policyType: Egress
+    allowPorts:
+      - port: 53
+        protocol: UDP
+      - port: 9000
+        protocol: TCP
+
+- name: np-nginx-allow-external-traffic
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    podSelectorLabels:
+      app: nginx
+    policyType: Ingress
+    ingressAllowFromAll: True
+
+- name: np-wp-allow-external-traffic
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-wp
+    podSelectorLabels:
+      app: wp
+    policyType: Ingress
+    ingressAllowFromAll: True
+
+- name: np-drupal-allow-nginx
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    podSelectorLabels:
+      app: drupal
+    policyType: Ingress
+    ingressAllowFromLabels:
+      app: nginx
+
+- name: np-wp-ns-netpol-google-test-allow-egress
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-wp
+    podSelectorLabels:
+      app: wp-ns-netpol-google-test
+    policyType: Egress
+    allowPorts:
+      - port: 53
+        protocol: UDP
+
+- name: np-wp-ns-netpol-drupal-test-allow-egress
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-wp
+    podSelectorLabels:
+      app: wp-ns-netpol-drupal-test
+    policyType: Egress
+    allowPorts:
+      - port: 53
+        protocol: UDP
+
+- name: np-drupal-ns-netpol-drupal-test-allow-egress
+  type: modules/k8s/k8s_provider_network_policy.jinja
+  properties:
+    namespace: ns-drupal
+    podSelectorLabels:
+      app: drupal-ns-netpol-drupal-test
+    policyType: Egress
+    allowPorts:
+      - port: 53
+        protocol: UDP

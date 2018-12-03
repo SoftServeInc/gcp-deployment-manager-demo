@@ -1,0 +1,72 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+
+{% set PV_COLLECTION_PREFIX = '/api/v1/' %}
+{% set PV_COLLECTION = PV_COLLECTION_PREFIX + 'persistentvolumes' %}
+{% set PVC_COLLECTION_PREFIX = '/api/v1/' %}
+{% set PVC_COLLECTION = PVC_COLLECTION_PREFIX + 'namespaces/{namespace}/persistentvolumeclaims' %}
+{% set NAME_PREFIX = env['deployment'] %}
+{% set NAME = env['name'] %}
+
+{% set NAMESPACE = properties['namespace'] %}
+{% set CAPACITY = properties['capacity'] %}
+{% set ACCESS_MODE = properties['accessMode'] %}
+
+{% if properties['pdName'] is defined %}
+{% set PD_NAME = properties['pdName'] %}
+{% endif %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ NAME_PREFIX }}-pv
+  type: {{ CLUSTER_TYPE }}-type:{{ PV_COLLECTION }}
+  properties:
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: {{ NAME_PREFIX }}-pv
+    spec:
+      storageClassName: {{ NAME_PREFIX }}-storage
+      capacity:
+        storage: {{ CAPACITY }}
+      accessModes:
+        - {{ ACCESS_MODE }}
+{% if PD_NAME is defined %}
+      gcePersistentDisk:
+        pdName: {{ PD_NAME }}
+        fsType: ext4
+{% endif %}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type
+
+- name: {{ NAME_PREFIX }}-pvc
+  type: {{ CLUSTER_TYPE }}-type:{{ PVC_COLLECTION }}
+  properties:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME_PREFIX }}-pvc
+    spec:
+      storageClassName: {{ NAME_PREFIX }}-storage
+      volumeName: {{ NAME_PREFIX }}-pv
+      accessModes:
+        - {{ ACCESS_MODE }}
+      resources:
+        requests:
+          storage: {{ CAPACITY }}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type
+      - {{ NAME_PREFIX }}-pv
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}

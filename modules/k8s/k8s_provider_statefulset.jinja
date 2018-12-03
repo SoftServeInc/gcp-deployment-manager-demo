@@ -1,0 +1,154 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+
+{% set SERVICE_COLLECTION_PREFIX = '/api/v1/namespaces/{namespace}/' %}
+{% set SERVICE_COLLECTION = SERVICE_COLLECTION_PREFIX + 'services' %}
+{% set STATEFULSET_COLLECTION_PREFIX = '/apis/apps/v1beta1/namespaces/{namespace}/' %}
+{% set STATEFULSET_COLLECTION = STATEFULSET_COLLECTION_PREFIX + 'statefulsets' %}
+{% set NAME_PREFIX = env['deployment'] %}
+{% set NAME = env['name'] %}
+
+{% set REPLICAS = properties['replicas'] %}
+{% set NAMESPACE = properties['namespace'] %}
+{% set TARGET_PORT = properties['targetPort'] %}
+{% set IMAGE = properties['image'] %}
+
+{% if properties["serviceType"] is defined %}
+{% set SERVICE_PORT = properties['servicePort'] %}
+{% set SERVICE_TYPE = properties['serviceType'] %}
+{% endif %}
+{% if properties["sqlName"] is defined %}
+{% set SQL_PROJECT_ID = env['project'] %}
+{% set SQL_REGION = properties['sqlRegion'] %}
+{% set SQL_NAME = properties['sqlName'] %}
+{% set SERVICE_ACCOUNT_FILE_NAME = properties['serviceAccountFileName'] %}
+{% endif %}
+{% if properties["volumeClaimTemplates"] is defined %}
+{% set VOLUME_CLAIM_TEMPLATES = properties["volumeClaimTemplates"] %}
+{% endif %}
+{% if properties['env'] is defined %}
+{% set ENV_VARIABLES = properties['env'] %}
+{% endif %}
+{% if properties["initContainerName"] is defined %}
+{% set INIT_CONTAINER_IMAGE_NAME = properties['initContainerName'] %}
+{% endif %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+{% if SERVICE_TYPE is defined %}
+- name: {{ NAME_PREFIX }}-{{ NAME }}-svc
+  type: {{ CLUSTER_TYPE }}-type:{{ SERVICE_COLLECTION }}
+  properties:
+    apiVersion: v1
+    kind: Service
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME }}-svc
+      labels:
+        id: {{ NAME_PREFIX }}-{{ NAME }}-svc
+    spec:
+      type: {{ SERVICE_TYPE }}
+      ports:
+      - port: {{ SERVICE_PORT }}
+        targetPort: {{ TARGET_PORT }}
+        protocol: TCP
+      selector:
+        app: {{ NAME_PREFIX }}-{{ NAME }}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}
+{% endif %}
+
+- name: {{ NAME_PREFIX }}-{{ NAME }}
+  type: {{ CLUSTER_TYPE }}-type-apps:{{ STATEFULSET_COLLECTION }}
+  properties:
+    apiVersion: apps/v1beta1
+    kind: StatefulSet
+    namespace: {{ NAMESPACE }}
+    metadata:
+      name: {{ NAME_PREFIX }}-{{ NAME }}
+      labels:
+        app: {{ NAME_PREFIX }}-{{ NAME }}
+    spec:
+      serviceName: {{ NAME_PREFIX }}-{{ NAME }}
+      replicas: {{ REPLICAS }}
+      template:
+        metadata:
+          labels:
+            app: {{ NAME_PREFIX }}-{{ NAME }}
+        spec:
+{% if INIT_CONTAINER_IMAGE_NAME is defined %}
+          initContainers:
+            - name: volume-mount-hack
+              image: {{ INIT_CONTAINER_IMAGE_NAME }}
+              command: ["sh", "-c", "chown -R www-data:www-data /var/www/html"]
+{% if VOLUME_CLAIM_TEMPLATES is defined %}
+              volumeMounts:
+                - name: persistent-storage
+                  mountPath: /var/www/html
+{% endif %}
+{% endif %}
+          containers:
+            - image: {{ IMAGE }}
+              name: {{ NAME }}
+{% if properties['env'] is defined %}
+              env:
+{% for var1, var2 in ENV_VARIABLES.iteritems() %}
+              - name: {{ var1 }}
+                value: {{ var2 }}
+{% endfor %}
+{% endif %}
+              ports:
+                - containerPort: {{ TARGET_PORT }}
+                  name: {{ NAME }}-port
+{% if VOLUME_CLAIM_TEMPLATES is defined %}
+              volumeMounts:
+                - name: persistent-storage
+                  mountPath: /var/www/html
+{% endif %}
+{% if SQL_REGION is defined %}
+            - name: cloudsql-proxy
+              image: gcr.io/cloudsql-docker/gce-proxy:1.11
+              command: ["/cloud_sql_proxy",
+                    "-instances={{ SQL_PROJECT_ID }}:{{ SQL_REGION }}:{{ NAME_PREFIX }}{{ SQL_NAME }}-master=tcp:3306",
+                    "-credential_file=/secrets/cloudsql/{{ SERVICE_ACCOUNT_FILE_NAME }}"]
+              securityContext:
+                runAsUser: 2  # non-root user
+                allowPrivilegeEscalation: false
+              volumeMounts:
+              - name: cloudsql-instance-credentials
+                mountPath: /secrets/cloudsql
+                readOnly: true
+{% endif %}
+          volumes:
+            - name: cloudsql-instance-credentials
+              secret:
+                secretName: {{ NAME_PREFIX }}-secret
+{% if VOLUME_CLAIM_TEMPLATES is defined %}
+      volumeClaimTemplates:
+      - metadata:
+          name: persistent-storage
+        spec:
+          accessModes: [ "ReadWriteOnce" ]
+          storageClassName: {{ NAME_PREFIX }}-storage
+          resources:
+            requests:
+              storage: 20Gi
+{% endif %}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type-appsv1
+      - {{ NAME_PREFIX }}{{ SQL_NAME }}-master
+      - {{ NAME_PREFIX }}{{ SQL_NAME }}-db-{{ NAME }}db
+      - {{ NAME_PREFIX }}{{ SQL_NAME }}-db-root
+      - {{ NAME_PREFIX }}-namespace-{{ NAMESPACE }}

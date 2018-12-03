@@ -1,0 +1,19 @@
+info:
+  title: Kubernetes Manifests
+  author: pklos@softserveinc.com
+  description: |
+    Creates and deploy Kubernetes Manifests for PersistentVolume and PersistentVolumeClaim
+  version: 0.1
+
+properties:
+  namespace:
+    type: string
+    default: default
+  capacity:
+    type: string
+    default: 500G
+  accessMode:
+    type: string
+    default: ReadOnlyMany
+  pdName:
+    type: string

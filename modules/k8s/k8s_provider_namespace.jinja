@@ -1,0 +1,25 @@
+###############
+## PARAMETERS #
+###############
+
+{% set CLUSTER_TYPE = env['project'] + '/' + env['deployment'] %}
+{% set NAMESPACE_COLLECTION_PREFIX = '/api/v1/' %}
+{% set NAMESPACE_COLLECTION = NAMESPACE_COLLECTION_PREFIX + 'namespaces' %}
+{% set NAME_PREFIX = env['deployment'] %}
+{% set NAME = env['name'] %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ NAME_PREFIX }}-namespace-{{ name }}
+  type: {{ CLUSTER_TYPE }}-type:{{ NAMESPACE_COLLECTION }}
+  properties:
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: {{ NAME }}
+  metadata:
+    dependsOn:
+      - {{ NAME_PREFIX }}-type

@@ -1,0 +1,38 @@
+###############
+## PARAMETERS #
+###############
+
+## Defauls are defined in .schema file
+## Defauls can be ovewritten by YAML config files
+
+{% set ID = env['deployment'] + properties['sqlName'] %}
+
+{% set SQL_PROJECT_ID = env['project'] %}
+{% set SQL_REGION = properties['sqlRegion'] %}
+{% set SQL_NAME = properties['sqlName'] %}
+{% set NAME_PREFIX = env['deployment'] %}
+{% set NAME = env['name'] %}
+{% set DB_NAME = properties['databaseName'] %}
+
+{% if properties['dependsOnDbName'] is defined %}
+{% set DEPENDS_ON_DB = properties['dependsOnDbName'] %}
+{% endif %}
+
+##################
+## GCP RESOURCES #
+##################
+
+resources:
+- name: {{ ID }}-db-{{ NAME }}
+  type: sqladmin.v1beta4.database
+  properties:
+    name: {{ DB_NAME }}
+    instance: $(ref.{{ ID }}-master.name)
+    charset: utf8
+  metadata:
+    dependsOn:
+      - {{ ID }}-failover
+      - {{ ID }}-db-root
+{% if DEPENDS_ON_DB is defined %}
+      - {{ ID }}-db-{{ DEPENDS_ON_DB }}
+{% endif %}

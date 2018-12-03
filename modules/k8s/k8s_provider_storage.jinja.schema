@@ -1,0 +1,14 @@
+info:
+  title: Kubernetes Manifests
+  author: pklos@softserveinc.com
+  description: |
+    Creates and deploy Kubernetes Manifests for Storage
+  version: 0.1
+
+properties:
+  replicationType:
+    type: string
+    default: regional-pd
+  zones:
+    type: string
+    default: europe-west3-b, europe-west3-c
