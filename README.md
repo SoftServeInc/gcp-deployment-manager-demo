@@ -27,17 +27,17 @@ Set Service Account Email Address - `sql.properties.cloudsql.serviceAccountEmail
 
 ## Kubernetes and GCP Resources design
 
-[Kubernetes and GCP Resources design](diagrams/kubernetes.png)
+![Kubernetes and GCP Resources design](diagrams/kubernetes.png)
 
 ## Kubernetes Network Policies design
 
-[Kubernetes Network Policies design](diagrams/kubernetes_network_policy.png)
+![Kubernetes Network Policies design](diagrams/kubernetes_network_policy.png)
 
 ## Public Cluster
 
 ### Infrastructure Architecture
 
-[Infrastructure Architecture Public](diagrams/public_gke.png)
+![Infrastructure Architecture Public](diagrams/public_gke.png)
 
 ### Deployment
 
@@ -65,7 +65,7 @@ TBD
 
 ### Infrastructure Architecture
 
-[Infrastructure Architecture Private](diagrams/private_gke.png)
+![Infrastructure Architecture Private](diagrams/private_gke.png)
 
 ### Deployment
 
