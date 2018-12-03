@@ -2,7 +2,6 @@ imports:
 - path: modules/gke/gke_provider_cluster.jinja
 - path: modules/cloudsql/cloudsql.jinja
 - path: modules/cloudsql/cloudsql_db.jinja
-- path: modules/network/network_provider.jinja
 - path: modules/k8s/k8s_provider_storage.jinja
 - path: modules/k8s/k8s_provider_deployment.jinja
 - path: modules/k8s/k8s_provider_secret.jinja
