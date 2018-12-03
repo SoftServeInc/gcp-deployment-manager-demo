@@ -8,8 +8,8 @@ These instructions will get you a fully functional GKE Regional Cluster includin
 
 ### Prerequisites
 
-Google Cloud Platform Project.
-GCloud Command Line Tool.
+Google Cloud Platform Project.  
+GCloud Command Line Tool.  
 Google Cloud Platform Account with the following roles assigned:
 
 * Compute.admin
