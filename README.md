@@ -9,21 +9,45 @@ These instructions will get you a fully functional GKE Regional Cluster includin
 ### Prerequisites
 
 Google Cloud Platform Project.  
-GCloud Command Line Tool.  
-Google Cloud Platform Account with the following roles assigned:
-
-* Compute.admin
-* SQL.admin
+GCloud Command Line Tool.
 
 ## Secrets and additional settings
 
-Provide secrets in `deploy-public.yaml` file.
+1. Create image with nginx static files from Google Cloud Storage:
+```
+gcloud compute images create gcp-dm-demo-drupal-nginx-static-files --source-uri https://storage.googleapis.com/gcp-dm-demo/gcp-dm-demo-drupal-nginx-static-files.tar.gz --project <PROJECT-ID>
+```
+2. Create Compute Disk from image:
+```
+gcloud compute disks create nginx-static-files --image gcp-dm-demo-drupal-nginx-static-files --zone europe-west3-b
+```
+3. Create a service account:
+```
+gcloud iam service-accounts create gcp-dm-demo
+```
+and follow the instruction to download service account JSON key: https://cloud.google.com/iam/docs/creating-managing-service-account-keys.
+
+4. Run the following command to get base64 encoded service account key:
+```
+base64 -w 0 <service_account_JSON_key_file>
+```
+5. Assign CloudSQL Admin Role to service account
+6. Enable the following APIs for your project:
+
+* Compute Engine API
+* Kubernetes Engine API
+* Google Cloud Deployment Manager V2 API
+* Stackdriver Logging API
+* Stackdriver Monitoring API
+* Cloud SQL Admin API
+
+7. Provide secrets in `deploy-public.yaml` file.
 
 * MySQL password for Drupal and Wordpress (`sql.properties.dbUser.password`, `drupal.properties.env.DB_PASSWORD`, `wp.properties.env.DB_PASSWORD`)
 * GCP Service Account JSON Credentials (SQL Admin role assigned, base64 encoded) for CloudSQL Proxy Container - (`secret-service-account-drupal.properties.data` and `secret-service-account-wp.properties.data`)
 
-Set pre-existing GKE Persistent Disk Name for Drupal Nginx static files - `pv-nginx.properties.pdName`.
-Set Service Account Email Address - `sql.properties.cloudsql.serviceAccountEmailAddress`.
+8. Set pre-existing GKE Persistent Disk Name for Drupal Nginx static files - `pv-nginx.properties.pdName`.
+9. Set Service Account Email Address - `sql.properties.cloudsql.serviceAccountEmailAddress`.
 
 ## Kubernetes and GCP Resources design
 

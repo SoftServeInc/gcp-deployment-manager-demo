@@ -19,8 +19,8 @@ resources:
   type: modules/gke/gke_provider_cluster.jinja
   properties:
     location: europe-west3
-    initialClusterVersion: 1.10.6-gke.11
-    nodeVersion: 1.10.6-gke.11
+    initialClusterVersion: 1.10.9-gke.5
+    nodeVersion: 1.10.9-gke.5
     nodeMachineType: n1-standard-2
     autoscaling: True
 
