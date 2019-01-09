@@ -30,12 +30,12 @@ resources:
   type: modules/cloudsql/cloudsql.jinja
   properties:
     dbUser:
-      password: <MySQL_Password>
+      password: "<MySQL_PASSWORD>"
     failover: true
     cloudsql:
       region: europe-west3
       zone: europe-west3-b
-      serviceAccountEmailAddress: "<Service_Account_Email_Address>"
+      serviceAccountEmailAddress: "<KEY_EMAIL>"
 
 ## Regional Storage - k8s manifest apply
 
@@ -58,13 +58,13 @@ resources:
     namespace: ns-drupal
     dataFileName: service-account-creds.json
     data: |
-      <Service Account JSON Credentials (base64)>
+      <B64_CRED_KEY>
 
 - name: pv-nginx
   type: modules/k8s/k8s_provider_pv.jinja
   properties:
     namespace: ns-drupal
-    pdName: gke-test14-27505657-dy-pvc-cde4435c-f232-11e8-8435-42010a9c0038
+    pdName: <GCE_DISK>
 
 - name: autoscaling-nginx
   type: modules/k8s/k8s_provider_hpa.jinja
@@ -116,7 +116,7 @@ resources:
     image: "wodby/drupal:8-4.9.3"
     env:
       DB_HOST: "127.0.0.1:3306"
-      DB_PASSWORD: <MySQL_Password>
+      DB_PASSWORD: "<MySQL_PASSWORD>"
       DB_USER: root
       DB_NAME: drupaldb
       DB_DRIVER: mysql
@@ -135,7 +135,7 @@ resources:
     namespace: ns-wp
     dataFileName: service-account-creds.json
     data: |
-      <Service Account JSON Credentials (base64)>
+      <B64_CRED_KEY>
 
 - name: wpdb
   type: modules/cloudsql/cloudsql_db.jinja
